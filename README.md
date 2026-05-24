@@ -1,5 +1,7 @@
 # Tutor LMS MCP Server — WordPress Plugin
 
+![Tutor LMS MCP Server](banner.png)
+
 A WordPress plugin that turns your Tutor LMS site into a live MCP server,
 letting Claude AI manage your courses, lessons, quizzes, enrollments, and more.
 
