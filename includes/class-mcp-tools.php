@@ -17,7 +17,7 @@ class TLMS_MCP_Tools {
     public static function list_tools(): array {
         return [
             self::schema( 'tutor_list_courses', 'List all courses.',
-                [ 'search' => [ 'type' => 'string' ], 'page' => [ 'type' => 'integer' ], 'per_page' => [ 'type' => 'integer' ] ], [] ),
+                [ 'search' => [ 'type' => 'string' ], 'post_status' => [ 'type' => 'string', 'enum' => [ 'publish', 'draft', 'private', 'pending', 'any' ] ] ], [] ),
             self::schema( 'tutor_get_course', 'Get full details of a course.',
                 [ 'course_id' => [ 'type' => 'integer' ] ], [ 'course_id' ] ),
             self::schema( 'tutor_create_course', 'Create a new course.',
@@ -41,8 +41,9 @@ class TLMS_MCP_Tools {
                   'topic_summary' => [ 'type' => 'string' ] ], [ 'topic_id' ] ),
             self::schema( 'tutor_delete_topic', 'Delete a topic.',
                 [ 'topic_id' => [ 'type' => 'integer' ] ], [ 'topic_id' ] ),
-            self::schema( 'tutor_get_lesson', 'Get lesson details.',
-                [ 'lesson_id' => [ 'type' => 'integer' ] ], [ 'lesson_id' ] ),
+            self::schema( 'tutor_get_lesson', 'Get lessons for a topic. Pass lesson_id to filter a specific lesson.',
+                [ 'topic_id'  => [ 'type' => 'integer' ],
+                  'lesson_id' => [ 'type' => 'integer' ] ], [ 'topic_id' ] ),
             self::schema( 'tutor_create_lesson', 'Create a lesson inside a topic.',
                 [ 'topic_id'          => [ 'type' => 'integer' ],
                   'lesson_title'      => [ 'type' => 'string' ],
@@ -95,8 +96,7 @@ class TLMS_MCP_Tools {
                 [ 'assignment_id' => [ 'type' => 'integer' ] ], [ 'assignment_id' ] ),
             self::schema( 'tutor_list_enrollments', 'List enrollments.',
                 [ 'course_id' => [ 'type' => 'integer' ], 'student_id' => [ 'type' => 'integer' ],
-                  'status' => [ 'type' => 'string' ], 'page' => [ 'type' => 'integer' ],
-                  'per_page' => [ 'type' => 'integer' ] ], [] ),
+                  'status' => [ 'type' => 'string' ] ], [] ),
             self::schema( 'tutor_enroll_student', 'Enroll a student in a course.',
                 [ 'course_id' => [ 'type' => 'integer' ], 'student_id' => [ 'type' => 'integer' ] ],
                 [ 'course_id', 'student_id' ] ),
@@ -122,8 +122,7 @@ class TLMS_MCP_Tools {
             self::schema( 'tutor_delete_announcement', 'Delete a course announcement.',
                 [ 'announcement_id' => [ 'type' => 'integer' ] ], [ 'announcement_id' ] ),
             self::schema( 'tutor_list_students', 'List enrolled students for a course.',
-                [ 'course_id' => [ 'type' => 'integer' ], 'page' => [ 'type' => 'integer' ],
-                  'per_page' => [ 'type' => 'integer' ] ], [ 'course_id' ] ),
+                [ 'course_id' => [ 'type' => 'integer' ] ], [ 'course_id' ] ),
             self::schema( 'tutor_get_student_profile', 'Get a student profile.',
                 [ 'user_id' => [ 'type' => 'integer' ] ], [ 'user_id' ] ),
             self::schema( 'tutor_get_course_content', 'Get full curriculum: topics, lessons, quizzes, assignments.',
@@ -230,9 +229,8 @@ class TLMS_MCP_Tools {
 
     private static function list_courses( array $a ): string {
         $p = array_filter( [
-            'paged'    => $a['page']     ?? 1,
-            'per_page' => $a['per_page'] ?? 10,
-            'search'   => $a['search']   ?? null,
+            'search'      => $a['search']      ?? null,
+            'post_status' => $a['post_status'] ?? null,
         ] );
         return self::ok( self::tutor( 'GET', '/courses', $p ) );
     }
@@ -309,8 +307,18 @@ class TLMS_MCP_Tools {
     // ══════════════════════════════════════════════════════════════════════════
 
     private static function get_lesson( array $a ): string {
-        self::require_int( $a, 'lesson_id' );
-        return self::ok( self::tutor( 'GET', '/lessons/' . intval( $a['lesson_id'] ) ) );
+        self::require_int( $a, 'topic_id' );
+        $result = self::tutor( 'GET', '/lessons', [ 'topic_id' => intval( $a['topic_id'] ) ] );
+        if ( ! empty( $a['lesson_id'] ) && isset( $result['data'] ) && is_array( $result['data'] ) ) {
+            $lid = intval( $a['lesson_id'] );
+            foreach ( $result['data'] as $lesson ) {
+                if ( isset( $lesson['ID'] ) && intval( $lesson['ID'] ) === $lid ) {
+                    return self::ok( $lesson );
+                }
+            }
+            throw new \Exception( "Lesson {$lid} not found in topic." );
+        }
+        return self::ok( $result );
     }
 
     private static function create_lesson( array $a ): string {
@@ -381,23 +389,21 @@ class TLMS_MCP_Tools {
 
     private static function create_quiz( array $a ): string {
         self::require_int( $a, 'topic_id' ); self::require_string( $a, 'quiz_title' );
-        $quiz_options = [
-            'passing_grade'  => $a['passing_grade'] ?? 80,
-            'feedback_mode'  => $a['feedback_mode'] ?? 'default',
-            'attempts_allowed' => $a['attempts_allowed'] ?? 0,
-        ];
-        if ( ! empty( $a['time_limit_value'] ) ) {
-            $quiz_options['time_limit'] = [
-                'time_value' => intval( $a['time_limit_value'] ),
+        $quiz_option = [
+            'passing_grade'    => (string) ( $a['passing_grade'] ?? 80 ),
+            'feedback_mode'    => $a['feedback_mode'] ?? 'default',
+            'attempts_allowed' => (string) ( $a['attempts_allowed'] ?? 0 ),
+            'time_limit'       => [
+                'time_value' => (string) ( $a['time_limit_value'] ?? 0 ),
                 'time_type'  => sanitize_text_field( $a['time_limit_type'] ?? 'minutes' ),
-            ];
-        }
+            ],
+        ];
         return self::ok( self::tutor( 'POST', '/quizzes', [
             'topic_id'         => intval( $a['topic_id'] ),
             'quiz_title'       => sanitize_text_field( $a['quiz_title'] ),
             'quiz_author'      => get_current_user_id(),
             'quiz_description' => $a['quiz_description'] ?? '',
-            'quiz_options'     => $quiz_options,
+            'quiz_option'      => $quiz_option,
         ] ) );
     }
 
@@ -438,7 +444,7 @@ class TLMS_MCP_Tools {
 
     private static function get_assignment( array $a ): string {
         self::require_int( $a, 'assignment_id' );
-        return self::ok( self::tutor( 'GET', '/course-assignment/' . intval( $a['assignment_id'] ) ) );
+        return self::ok( self::tutor( 'GET', '/assignments/' . intval( $a['assignment_id'] ) ) );
     }
 
     private static function delete_assignment( array $a ): string {
@@ -455,8 +461,6 @@ class TLMS_MCP_Tools {
             'course_id'  => $a['course_id']  ?? null,
             'student_id' => $a['student_id'] ?? null,
             'status'     => $a['status']     ?? null,
-            'page'       => $a['page']       ?? 1,
-            'per_page'   => $a['per_page']   ?? 20,
         ] ) ) );
     }
 
@@ -525,7 +529,7 @@ class TLMS_MCP_Tools {
 
     private static function create_announcement( array $a ): string {
         self::require_int( $a, 'course_id' ); self::require_string( $a, 'announcement_title' );
-        return self::ok( self::tutor( 'POST', '/announcements', [
+        return self::ok( self::tutor( 'POST', '/course-announcement', [
             'course_id'            => intval( $a['course_id'] ),
             'announcement_title'   => sanitize_text_field( $a['announcement_title'] ),
             'announcement_summary' => sanitize_textarea_field( $a['announcement_summary'] ?? '' ),
@@ -534,7 +538,7 @@ class TLMS_MCP_Tools {
 
     private static function delete_announcement( array $a ): string {
         self::require_int( $a, 'announcement_id' );
-        return self::ok( self::tutor( 'DELETE', '/announcements/' . intval( $a['announcement_id'] ) ) );
+        return self::ok( self::tutor( 'DELETE', '/course-announcement/' . intval( $a['announcement_id'] ) ) );
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -543,11 +547,9 @@ class TLMS_MCP_Tools {
 
     private static function list_students( array $a ): string {
         self::require_int( $a, 'course_id' );
-        return self::ok( self::tutor( 'GET', '/enrollments', array_filter( [
+        return self::ok( self::tutor( 'GET', '/enrollments', [
             'course_id' => intval( $a['course_id'] ),
-            'page'      => $a['page']     ?? 1,
-            'per_page'  => $a['per_page'] ?? 20,
-        ] ) ) );
+        ] ) );
     }
 
     private static function get_student_profile( array $a ): string {
