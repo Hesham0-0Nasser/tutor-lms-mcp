@@ -44,20 +44,41 @@ class TLMS_MCP_Tools {
             self::schema( 'tutor_get_lesson', 'Get lesson details.',
                 [ 'lesson_id' => [ 'type' => 'integer' ] ], [ 'lesson_id' ] ),
             self::schema( 'tutor_create_lesson', 'Create a lesson inside a topic.',
-                [ 'topic_id' => [ 'type' => 'integer' ], 'lesson_title' => [ 'type' => 'string' ],
-                  'lesson_content' => [ 'type' => 'string' ], 'video_url' => [ 'type' => 'string' ] ],
+                [ 'topic_id'          => [ 'type' => 'integer' ],
+                  'lesson_title'      => [ 'type' => 'string' ],
+                  'lesson_content'    => [ 'type' => 'string' ],
+                  'video_source_type' => [ 'type' => 'string', 'enum' => [ 'youtube', 'vimeo', 'external_url', 'html5', 'embedded', 'shortcode' ] ],
+                  'video_source'      => [ 'type' => 'string' ],
+                  'video_hours'       => [ 'type' => 'string' ],
+                  'video_minutes'     => [ 'type' => 'string' ],
+                  'video_seconds'     => [ 'type' => 'string' ],
+                  'thumbnail_id'      => [ 'type' => 'integer' ],
+                  'preview'           => [ 'type' => 'boolean' ] ],
                 [ 'topic_id', 'lesson_title' ] ),
             self::schema( 'tutor_update_lesson', 'Update a lesson.',
-                [ 'lesson_id' => [ 'type' => 'integer' ], 'lesson_title' => [ 'type' => 'string' ],
-                  'lesson_content' => [ 'type' => 'string' ] ], [ 'lesson_id' ] ),
+                [ 'lesson_id'         => [ 'type' => 'integer' ],
+                  'lesson_title'      => [ 'type' => 'string' ],
+                  'lesson_content'    => [ 'type' => 'string' ],
+                  'video_source_type' => [ 'type' => 'string', 'enum' => [ 'youtube', 'vimeo', 'external_url', 'html5', 'embedded', 'shortcode' ] ],
+                  'video_source'      => [ 'type' => 'string' ],
+                  'video_hours'       => [ 'type' => 'string' ],
+                  'video_minutes'     => [ 'type' => 'string' ],
+                  'video_seconds'     => [ 'type' => 'string' ],
+                  'thumbnail_id'      => [ 'type' => 'integer' ],
+                  'preview'           => [ 'type' => 'boolean' ] ], [ 'lesson_id' ] ),
             self::schema( 'tutor_delete_lesson', 'Delete a lesson.',
                 [ 'lesson_id' => [ 'type' => 'integer' ] ], [ 'lesson_id' ] ),
             self::schema( 'tutor_get_quiz', 'Get quiz details including questions.',
                 [ 'quiz_id' => [ 'type' => 'integer' ] ], [ 'quiz_id' ] ),
             self::schema( 'tutor_create_quiz', 'Create a quiz inside a topic.',
-                [ 'topic_id' => [ 'type' => 'integer' ], 'quiz_title' => [ 'type' => 'string' ],
-                  'quiz_description' => [ 'type' => 'string' ], 'pass_mark' => [ 'type' => 'integer' ],
-                  'time_limit' => [ 'type' => 'integer' ] ], [ 'topic_id', 'quiz_title' ] ),
+                [ 'topic_id'         => [ 'type' => 'integer' ],
+                  'quiz_title'       => [ 'type' => 'string' ],
+                  'quiz_description' => [ 'type' => 'string' ],
+                  'passing_grade'    => [ 'type' => 'integer' ],
+                  'time_limit_value' => [ 'type' => 'integer' ],
+                  'time_limit_type'  => [ 'type' => 'string', 'enum' => [ 'seconds', 'minutes', 'hours', 'days', 'weeks' ] ],
+                  'feedback_mode'    => [ 'type' => 'string', 'enum' => [ 'default', 'reveal', 'retry' ] ],
+                  'attempts_allowed' => [ 'type' => 'integer' ] ], [ 'topic_id', 'quiz_title' ] ),
             self::schema( 'tutor_add_quiz_question', 'Add a question to a quiz.',
                 [ 'quiz_id' => [ 'type' => 'integer' ], 'question_title' => [ 'type' => 'string' ],
                   'question_type' => [ 'type' => 'string' ], 'question_mark' => [ 'type' => 'integer' ],
@@ -99,11 +120,10 @@ class TLMS_MCP_Tools {
                 [ 'course_id' => [ 'type' => 'integer' ], 'announcement_title' => [ 'type' => 'string' ],
                   'announcement_summary' => [ 'type' => 'string' ] ], [ 'course_id', 'announcement_title' ] ),
             self::schema( 'tutor_delete_announcement', 'Delete a course announcement.',
-                [ 'course_id' => [ 'type' => 'integer' ], 'announcement_id' => [ 'type' => 'integer' ] ],
-                [ 'course_id', 'announcement_id' ] ),
-            self::schema( 'tutor_list_students', 'List students.',
+                [ 'announcement_id' => [ 'type' => 'integer' ] ], [ 'announcement_id' ] ),
+            self::schema( 'tutor_list_students', 'List enrolled students for a course.',
                 [ 'course_id' => [ 'type' => 'integer' ], 'page' => [ 'type' => 'integer' ],
-                  'per_page' => [ 'type' => 'integer' ] ], [] ),
+                  'per_page' => [ 'type' => 'integer' ] ], [ 'course_id' ] ),
             self::schema( 'tutor_get_student_profile', 'Get a student profile.',
                 [ 'user_id' => [ 'type' => 'integer' ] ], [ 'user_id' ] ),
             self::schema( 'tutor_get_course_content', 'Get full curriculum: topics, lessons, quizzes, assignments.',
@@ -225,6 +245,7 @@ class TLMS_MCP_Tools {
     private static function create_course( array $a ): string {
         self::require_string( $a, 'post_title' );
         return self::ok( self::tutor( 'POST', '/courses', array_filter( [
+            'post_author'  => get_current_user_id(),
             'post_title'   => sanitize_text_field( $a['post_title'] ),
             'post_content' => $a['post_content'] ?? '',
             'post_status'  => $a['post_status']  ?? 'draft',
@@ -266,6 +287,7 @@ class TLMS_MCP_Tools {
             'topic_course_id' => intval( $a['course_id'] ),
             'topic_title'     => sanitize_text_field( $a['topic_title'] ),
             'topic_summary'   => sanitize_text_field( $a['topic_summary'] ?? '' ),
+            'topic_author'    => get_current_user_id(),
         ] ) );
     }
 
@@ -288,7 +310,7 @@ class TLMS_MCP_Tools {
 
     private static function get_lesson( array $a ): string {
         self::require_int( $a, 'lesson_id' );
-        return self::ok( self::tutor( 'GET', '/lesson/' . intval( $a['lesson_id'] ) ) );
+        return self::ok( self::tutor( 'GET', '/lessons/' . intval( $a['lesson_id'] ) ) );
     }
 
     private static function create_lesson( array $a ): string {
@@ -297,9 +319,24 @@ class TLMS_MCP_Tools {
             'topic_id'       => intval( $a['topic_id'] ),
             'lesson_title'   => sanitize_text_field( $a['lesson_title'] ),
             'lesson_content' => $a['lesson_content'] ?? '',
+            'lesson_author'  => get_current_user_id(),
         ];
-        if ( ! empty( $a['video_url'] ) ) {
-            $body['video'] = [ 'source_type' => 'youtube', 'source' => esc_url_raw( $a['video_url'] ) ];
+        if ( ! empty( $a['thumbnail_id'] ) ) {
+            $body['thumbnail_id'] = intval( $a['thumbnail_id'] );
+        }
+        if ( isset( $a['preview'] ) ) {
+            $body['preview'] = (bool) $a['preview'];
+        }
+        if ( ! empty( $a['video_source'] ) ) {
+            $body['video'] = [
+                'source_type' => sanitize_text_field( $a['video_source_type'] ?? 'youtube' ),
+                'source'      => esc_url_raw( $a['video_source'] ),
+                'runtime'     => [
+                    'hours'   => str_pad( $a['video_hours']   ?? '0', 2, '0', STR_PAD_LEFT ),
+                    'minutes' => str_pad( $a['video_minutes'] ?? '0', 2, '0', STR_PAD_LEFT ),
+                    'seconds' => str_pad( $a['video_seconds'] ?? '0', 2, '0', STR_PAD_LEFT ),
+                ],
+            ];
         }
         return self::ok( self::tutor( 'POST', '/lessons', $body ) );
     }
@@ -309,9 +346,21 @@ class TLMS_MCP_Tools {
         $body = array_filter( [
             'lesson_title'   => $a['lesson_title']   ?? null,
             'lesson_content' => $a['lesson_content'] ?? null,
+            'thumbnail_id'   => ! empty( $a['thumbnail_id'] ) ? intval( $a['thumbnail_id'] ) : null,
         ] );
-        if ( ! empty( $a['video_url'] ) ) {
-            $body['video'] = [ 'source_type' => 'youtube', 'source' => esc_url_raw( $a['video_url'] ) ];
+        if ( isset( $a['preview'] ) ) {
+            $body['preview'] = (bool) $a['preview'];
+        }
+        if ( ! empty( $a['video_source'] ) ) {
+            $body['video'] = [
+                'source_type' => sanitize_text_field( $a['video_source_type'] ?? 'youtube' ),
+                'source'      => esc_url_raw( $a['video_source'] ),
+                'runtime'     => [
+                    'hours'   => str_pad( $a['video_hours']   ?? '0', 2, '0', STR_PAD_LEFT ),
+                    'minutes' => str_pad( $a['video_minutes'] ?? '0', 2, '0', STR_PAD_LEFT ),
+                    'seconds' => str_pad( $a['video_seconds'] ?? '0', 2, '0', STR_PAD_LEFT ),
+                ],
+            ];
         }
         return self::ok( self::tutor( 'POST', '/lessons/' . intval( $a['lesson_id'] ), $body ) );
     }
@@ -332,13 +381,24 @@ class TLMS_MCP_Tools {
 
     private static function create_quiz( array $a ): string {
         self::require_int( $a, 'topic_id' ); self::require_string( $a, 'quiz_title' );
-        return self::ok( self::tutor( 'POST', '/quizzes', array_filter( [
+        $quiz_options = [
+            'passing_grade'  => $a['passing_grade'] ?? 80,
+            'feedback_mode'  => $a['feedback_mode'] ?? 'default',
+            'attempts_allowed' => $a['attempts_allowed'] ?? 0,
+        ];
+        if ( ! empty( $a['time_limit_value'] ) ) {
+            $quiz_options['time_limit'] = [
+                'time_value' => intval( $a['time_limit_value'] ),
+                'time_type'  => sanitize_text_field( $a['time_limit_type'] ?? 'minutes' ),
+            ];
+        }
+        return self::ok( self::tutor( 'POST', '/quizzes', [
             'topic_id'         => intval( $a['topic_id'] ),
             'quiz_title'       => sanitize_text_field( $a['quiz_title'] ),
+            'quiz_author'      => get_current_user_id(),
             'quiz_description' => $a['quiz_description'] ?? '',
-            'time_limit'       => $a['time_limit']       ?? null,
-            'pass_mark'        => $a['pass_mark']        ?? 80,
-        ] ) ) );
+            'quiz_options'     => $quiz_options,
+        ] ) );
     }
 
     private static function add_quiz_question( array $a ): string {
@@ -364,10 +424,11 @@ class TLMS_MCP_Tools {
     private static function create_assignment( array $a ): string {
         self::require_int( $a, 'topic_id' ); self::require_string( $a, 'assignment_title' );
         return self::ok( self::tutor( 'POST', '/assignments', [
-            'topic_id'           => intval( $a['topic_id'] ),
-            'assignment_title'   => sanitize_text_field( $a['assignment_title'] ),
-            'assignment_content' => $a['assignment_content'] ?? '',
-            'assignment_options' => [
+            'topic_id'            => intval( $a['topic_id'] ),
+            'assignment_title'    => sanitize_text_field( $a['assignment_title'] ),
+            'assignment_author'   => get_current_user_id(),
+            'assignment_content'  => $a['assignment_content'] ?? '',
+            'assignment_options'  => [
                 'time_duration' => [ 'value' => $a['time_duration_value'] ?? 1, 'unit' => $a['time_duration_unit'] ?? 'weeks' ],
                 'total_mark'    => $a['total_mark'] ?? 10,
                 'pass_mark'     => $a['pass_mark']  ?? 5,
@@ -459,25 +520,21 @@ class TLMS_MCP_Tools {
 
     private static function list_announcements( array $a ): string {
         self::require_int( $a, 'course_id' );
-        return self::ok( self::tutor( 'GET', '/courses/' . intval( $a['course_id'] ) . '/announcements', [
-            'page'     => $a['page']     ?? 1,
-            'per_page' => $a['per_page'] ?? 10,
-        ] ) );
+        return self::ok( self::tutor( 'GET', '/course-announcement/' . intval( $a['course_id'] ) ) );
     }
 
     private static function create_announcement( array $a ): string {
         self::require_int( $a, 'course_id' ); self::require_string( $a, 'announcement_title' );
-        return self::ok( self::tutor( 'POST', '/courses/' . intval( $a['course_id'] ) . '/announcements', [
+        return self::ok( self::tutor( 'POST', '/announcements', [
+            'course_id'            => intval( $a['course_id'] ),
             'announcement_title'   => sanitize_text_field( $a['announcement_title'] ),
             'announcement_summary' => sanitize_textarea_field( $a['announcement_summary'] ?? '' ),
         ] ) );
     }
 
     private static function delete_announcement( array $a ): string {
-        self::require_int( $a, 'course_id' ); self::require_int( $a, 'announcement_id' );
-        return self::ok( self::tutor( 'DELETE',
-            '/courses/' . intval( $a['course_id'] ) . '/announcements/' . intval( $a['announcement_id'] )
-        ) );
+        self::require_int( $a, 'announcement_id' );
+        return self::ok( self::tutor( 'DELETE', '/announcements/' . intval( $a['announcement_id'] ) ) );
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -485,16 +542,17 @@ class TLMS_MCP_Tools {
     // ══════════════════════════════════════════════════════════════════════════
 
     private static function list_students( array $a ): string {
-        return self::ok( self::tutor( 'GET', '/students', array_filter( [
-            'course_id' => $a['course_id'] ?? null,
-            'page'      => $a['page']      ?? 1,
-            'per_page'  => $a['per_page']  ?? 20,
+        self::require_int( $a, 'course_id' );
+        return self::ok( self::tutor( 'GET', '/enrollments', array_filter( [
+            'course_id' => intval( $a['course_id'] ),
+            'page'      => $a['page']     ?? 1,
+            'per_page'  => $a['per_page'] ?? 20,
         ] ) ) );
     }
 
     private static function get_student_profile( array $a ): string {
         self::require_int( $a, 'user_id' );
-        return self::ok( self::tutor( 'GET', '/profiles/' . intval( $a['user_id'] ) ) );
+        return self::ok( self::tutor( 'GET', '/profile/' . intval( $a['user_id'] ) ) );
     }
 
     private static function get_course_content( array $a ): string {
