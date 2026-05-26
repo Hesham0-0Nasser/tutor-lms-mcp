@@ -73,18 +73,25 @@ class TLMS_MCP_Tools {
                 [ 'quiz_id'  => [ 'type' => 'integer' ],
                   'topic_id' => [ 'type' => 'integer' ] ], [] ),
             self::schema( 'tutor_create_quiz', 'Create a quiz inside a topic.',
-                [ 'topic_id'         => [ 'type' => 'integer' ],
-                  'quiz_title'       => [ 'type' => 'string' ],
-                  'quiz_description' => [ 'type' => 'string' ],
-                  'passing_grade'    => [ 'type' => 'integer' ],
-                  'time_limit_value' => [ 'type' => 'integer' ],
-                  'time_limit_type'  => [ 'type' => 'string', 'enum' => [ 'seconds', 'minutes', 'hours', 'days', 'weeks' ] ],
-                  'feedback_mode'    => [ 'type' => 'string', 'enum' => [ 'default', 'reveal', 'retry' ] ],
-                  'attempts_allowed' => [ 'type' => 'integer' ] ], [ 'topic_id', 'quiz_title' ] ),
+                [ 'topic_id'             => [ 'type' => 'integer' ],
+                  'quiz_title'           => [ 'type' => 'string' ],
+                  'quiz_description'     => [ 'type' => 'string' ],
+                  'passing_grade'        => [ 'type' => 'integer', 'description' => 'Passing grade percentage (default 80)' ],
+                  'time_limit_value'     => [ 'type' => 'integer', 'description' => 'Time limit amount (0 = no limit)' ],
+                  'time_limit_type'      => [ 'type' => 'string', 'enum' => [ 'seconds', 'minutes', 'hours', 'days', 'weeks' ] ],
+                  'feedback_mode'        => [ 'type' => 'string', 'enum' => [ 'default', 'reveal', 'retry' ] ],
+                  'attempts_allowed'     => [ 'type' => 'integer', 'description' => '0 = unlimited' ],
+                  'question_layout_view' => [ 'type' => 'string', 'enum' => [ 'single_question', 'question_pagination', 'question_below_each_other' ] ] ],
+                [ 'topic_id', 'quiz_title' ] ),
             self::schema( 'tutor_add_quiz_question', 'Add a question to a quiz.',
-                [ 'quiz_id' => [ 'type' => 'integer' ], 'question_title' => [ 'type' => 'string' ],
-                  'question_type' => [ 'type' => 'string' ], 'question_mark' => [ 'type' => 'integer' ],
-                  'answers' => [ 'type' => 'array' ] ], [ 'quiz_id', 'question_title', 'question_type' ] ),
+                [ 'quiz_id'        => [ 'type' => 'integer' ],
+                  'question_title' => [ 'type' => 'string' ],
+                  'question_type'  => [ 'type' => 'string', 'enum' => [ 'single_choice', 'multiple_choice', 'true_false', 'open_ended', 'fill_in_the_blank', 'short_answer', 'matching', 'image_answering', 'ordering' ] ],
+                  'options'        => [ 'type' => 'array', 'description' => 'Array of answer option text strings' ],
+                  'correct_answer' => [ 'type' => 'array', 'description' => 'Array of correct answer strings (must match values in options)' ],
+                  'question_mark'  => [ 'type' => 'number' ],
+                  'answer_required' => [ 'type' => 'integer', 'description' => '1 = required, 0 = optional' ] ],
+                [ 'quiz_id', 'question_title', 'question_type', 'question_mark' ] ),
             self::schema( 'tutor_delete_quiz', 'Delete a quiz.',
                 [ 'quiz_id' => [ 'type' => 'integer' ] ], [ 'quiz_id' ] ),
             self::schema( 'tutor_create_assignment', 'Create an assignment inside a topic.',
@@ -118,11 +125,6 @@ class TLMS_MCP_Tools {
                 [ 'course_id', 'user_id' ] ),
             self::schema( 'tutor_list_announcements', 'List announcements for a course.',
                 [ 'course_id' => [ 'type' => 'integer' ] ], [ 'course_id' ] ),
-            self::schema( 'tutor_create_announcement', 'Create a course announcement.',
-                [ 'course_id' => [ 'type' => 'integer' ], 'announcement_title' => [ 'type' => 'string' ],
-                  'announcement_summary' => [ 'type' => 'string' ] ], [ 'course_id', 'announcement_title' ] ),
-            self::schema( 'tutor_delete_announcement', 'Delete a course announcement.',
-                [ 'announcement_id' => [ 'type' => 'integer' ] ], [ 'announcement_id' ] ),
             self::schema( 'tutor_list_students', 'List enrolled students for a course.',
                 [ 'course_id' => [ 'type' => 'integer' ] ], [ 'course_id' ] ),
             self::schema( 'tutor_get_student_profile', 'Get a student profile.',
@@ -394,31 +396,35 @@ class TLMS_MCP_Tools {
 
     private static function create_quiz( array $a ): string {
         self::require_int( $a, 'topic_id' ); self::require_string( $a, 'quiz_title' );
-        $body = [
+        return self::ok( self::tutor( 'POST', '/quizzes', [
             'topic_id'         => intval( $a['topic_id'] ),
             'quiz_title'       => sanitize_text_field( $a['quiz_title'] ),
             'quiz_author'      => get_current_user_id(),
             'quiz_description' => $a['quiz_description'] ?? '',
-            'passing_grade'    => intval( $a['passing_grade'] ?? 80 ),
-            'feedback_mode'    => sanitize_text_field( $a['feedback_mode'] ?? 'default' ),
-            'attempts_allowed' => intval( $a['attempts_allowed'] ?? 0 ),
-        ];
-        if ( ! empty( $a['time_limit_value'] ) ) {
-            $body['time_limit']      = intval( $a['time_limit_value'] );
-            $body['time_limit_type'] = sanitize_text_field( $a['time_limit_type'] ?? 'minutes' );
-        }
-        return self::ok( self::tutor( 'POST', '/quizzes', $body ) );
+            'quiz_options'     => [
+                'time_limit'          => [
+                    'time_value' => intval( $a['time_limit_value'] ?? 0 ),
+                    'time_type'  => sanitize_text_field( $a['time_limit_type'] ?? 'minutes' ),
+                ],
+                'feedback_mode'        => sanitize_text_field( $a['feedback_mode'] ?? 'default' ),
+                'question_layout_view' => sanitize_text_field( $a['question_layout_view'] ?? 'question_below_each_other' ),
+                'attempts_allowed'     => intval( $a['attempts_allowed'] ?? 0 ),
+                'passing_grade'        => intval( $a['passing_grade'] ?? 80 ),
+            ],
+        ] ) );
     }
 
     private static function add_quiz_question( array $a ): string {
         self::require_int( $a, 'quiz_id' ); self::require_string( $a, 'question_title' ); self::require_string( $a, 'question_type' );
-        return self::ok( self::tutor( 'POST', '/quiz-questions', array_filter( [
-            'quiz_id'        => intval( $a['quiz_id'] ),
-            'question_title' => sanitize_text_field( $a['question_title'] ),
-            'question_type'  => $a['question_type'],
-            'question_mark'  => $a['question_mark'] ?? 1,
-            'answers'        => $a['answers']       ?? null,
-        ] ) ) );
+        return self::ok( self::tutor( 'POST', '/quiz-questions', [
+            'quiz_id'         => intval( $a['quiz_id'] ),
+            'question_title'  => sanitize_text_field( $a['question_title'] ),
+            'question_type'   => sanitize_text_field( $a['question_type'] ),
+            'options'         => $a['options']         ?? [],
+            'correct_answer'  => $a['correct_answer']  ?? [],
+            'answer_required' => intval( $a['answer_required'] ?? 1 ),
+            'question_mark'   => floatval( $a['question_mark'] ?? 1 ),
+        ] ) );
     }
 
     private static function delete_quiz( array $a ): string {
